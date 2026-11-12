@@ -31,6 +31,27 @@
   .stat.hi{background:var(--blue);border-color:var(--blue)}
   .stat.hi .label{color:#dbe3ff}
 
+  .cal{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:18px}
+  .cal-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+  .cal-head h3{font-size:1.1rem;color:var(--blue-soft)}
+  .cal-head button{background:var(--card2);color:var(--text);border:1px solid var(--line);border-radius:8px;width:36px;height:32px;font-size:1rem;cursor:pointer}
+  .cal-head button:hover:not(:disabled){border-color:var(--blue);color:var(--blue-soft)}
+  .cal-head button:disabled{opacity:.3;cursor:default}
+  .dow,.days{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+  .dow div{text-align:center;font-size:.7rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;padding-bottom:4px}
+  .day{min-height:64px;background:var(--card2);border:1px solid transparent;border-radius:8px;padding:4px;font-size:.78rem;color:var(--muted);overflow:hidden}
+  .day.empty{background:transparent}
+  .day.today{border-color:var(--blue-soft)}
+  .day.has{border-color:var(--blue);color:var(--text)}
+  .day .n{display:block;margin-bottom:2px}
+  .chip{display:inline-block;font-size:.6rem;font-weight:700;padding:1px 5px;border-radius:5px;margin:1px 1px 0 0;background:var(--blue);color:#fff}
+  .chip.paid{background:transparent;border:1px solid #3a4470;color:var(--muted)}
+  .cal-list{margin-top:14px;border-top:1px solid var(--line);padding-top:10px;font-size:.85rem}
+  .cal-list .item{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #121830}
+  .cal-list .none{color:var(--muted)}
+  .legend{display:flex;flex-wrap:wrap;gap:10px;margin-top:10px;font-size:.72rem;color:var(--muted)}
+  @media(max-width:520px){.day{min-height:52px;font-size:.7rem}.chip{font-size:.55rem;padding:1px 3px}}
+
   .overall{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:28px}
   .overall .row{display:flex;justify-content:space-between;font-size:.85rem;color:var(--muted);margin-bottom:8px}
   .bar{height:12px;border-radius:99px;background:var(--unpaid);overflow:hidden}
@@ -69,6 +90,7 @@
   </header>
 
   <section class="summary" id="summary"></section>
+  <section class="cal" id="calendar"></section>
   <section class="overall" id="overall"></section>
   <section class="grid" id="loans"></section>
 
@@ -85,7 +107,7 @@ const loans = [
     sched:[["2026-06-21",487.81,1],["2026-07-21",487.84,1],["2026-08-21",487.84,1],["2026-09-21",487.84,1],["2026-10-21",487.84,1],
            ["2026-11-21",487.84,0],["2026-12-21",487.84,0],["2027-01-21",487.84,0],["2027-02-21",487.84,0]] },
   { name:"SLoan #2", principal:2500, rate:"4.45%", monthly:944.58, total:2833.75, paid:1889.17, remaining:944.58,
-    sched:[["2026-06-21",944.58,1],["2026-07-21",944.58,1],["2026-08-21",944.59,0]] },
+    sched:[["2026-10-07",944.58,1],["2026-11-07",944.58,1],["2026-12-07",944.59,0]] },
   { name:"SPayLater #1", principal:1612.03, rate:"3.95%", monthly:332.07, total:1992.45, paid:1328.28, remaining:664.17,
     sched:[["2026-08-15",332.07,1],["2026-09-15",332.07,1],["2026-10-15",332.07,1],["2026-11-15",332.07,1],
            ["2026-12-15",332.07,0],["2027-01-15",332.10,0]] },
@@ -116,6 +138,69 @@ document.getElementById("summary").innerHTML = `
   <div class="stat"><div class="label">Total debt</div><div class="value">${peso(totalAll)}</div></div>
   <div class="stat"><div class="label">Next payment due</div><div class="value">${next?fmtDate(next.date):"-"}</div>
     <div class="label" style="margin-top:4px;text-transform:none">${next?next.loan+" &middot; "+peso(next.amt):""}</div></div>`;
+
+// ---------- Due-date calendar ----------
+const codes = {"GLoan":"GL","SLoan #1":"SL1","SLoan #2":"SL2","SPayLater #1":"SP1","SPayLater Limit Xtra":"SPX","Cash Advance":"CA"};
+const events = {};
+loans.forEach(l => l.sched.forEach(p => {
+  (events[p[0]] = events[p[0]] || []).push({loan:l.name, amt:p[1], paid:!!p[2]});
+}));
+const allDates = Object.keys(events).sort();
+const firstKey = allDates[0].slice(0,7), lastKey = allDates[allDates.length-1].slice(0,7);
+const pad = n => String(n).padStart(2,"0");
+const now = new Date();
+const todayKey = now.getFullYear()+"-"+pad(now.getMonth()+1)+"-"+pad(now.getDate());
+let viewKey = todayKey.slice(0,7);
+if(viewKey < firstKey) viewKey = firstKey;
+if(viewKey > lastKey) viewKey = lastKey;
+
+function shiftMonth(key, d){
+  const [y,m] = key.split("-").map(Number);
+  const dt = new Date(y, m-1+d, 1);
+  return dt.getFullYear()+"-"+pad(dt.getMonth()+1);
+}
+function renderCalendar(){
+  const [y,m] = viewKey.split("-").map(Number);
+  const first = new Date(y, m-1, 1);
+  const daysIn = new Date(y, m, 0).getDate();
+  const title = first.toLocaleDateString("en-US",{month:"long",year:"numeric"});
+  let cells = "";
+  for(let i=0;i<first.getDay();i++) cells += '<div class="day empty"></div>';
+  for(let d=1; d<=daysIn; d++){
+    const key = viewKey+"-"+pad(d);
+    const ev = events[key] || [];
+    const chips = ev.map(e=>`<span class="chip ${e.paid?'paid':''}" title="${e.loan}">${codes[e.loan]}</span>`).join("");
+    cells += `<div class="day ${ev.length?'has':''} ${key===todayKey?'today':''}"><span class="n">${d}</span>${chips}</div>`;
+  }
+  const monthItems = allDates.filter(k=>k.startsWith(viewKey)).flatMap(k=>events[k].map(e=>({date:k,...e})));
+  const list = monthItems.length ? monthItems.map(e=>`
+      <div class="item">
+        <span><span class="chip ${e.paid?'paid':''}">${codes[e.loan]}</span> ${fmtDate(e.date)} &middot; ${e.loan}</span>
+        <span>${peso(e.amt)} <span class="pill ${e.paid?'paid':'unpaid'}">${e.paid?'Paid':'Unpaid'}</span></span>
+      </div>`).join("") : '<div class="none">No payments due this month.</div>';
+  const monthTotal = monthItems.reduce((a,e)=>a+e.amt,0);
+  const monthUnpaid = monthItems.filter(e=>!e.paid).reduce((a,e)=>a+e.amt,0);
+  document.getElementById("calendar").innerHTML = `
+    <div class="cal-head">
+      <button id="prevM" ${viewKey<=firstKey?'disabled':''} aria-label="Previous month">&lsaquo;</button>
+      <h3>Due dates &middot; ${title}</h3>
+      <button id="nextM" ${viewKey>=lastKey?'disabled':''} aria-label="Next month">&rsaquo;</button>
+    </div>
+    <div class="dow"><div>Sun</div><div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div></div>
+    <div class="days">${cells}</div>
+    <div class="legend">
+      <span><span class="chip">SL1</span> Unpaid</span>
+      <span><span class="chip paid">SL1</span> Paid</span>
+      ${Object.entries(codes).map(([n,c])=>`<span>${c} = ${n}</span>`).join("")}
+    </div>
+    <div class="cal-list">
+      ${list}
+      ${monthItems.length?`<div class="item"><b>Month total</b><span><b>${peso(monthTotal)}</b> &middot; ${peso(monthUnpaid)} still unpaid</span></div>`:""}
+    </div>`;
+  document.getElementById("prevM").onclick = () => { viewKey = shiftMonth(viewKey,-1); renderCalendar(); };
+  document.getElementById("nextM").onclick = () => { viewKey = shiftMonth(viewKey,1); renderCalendar(); };
+}
+renderCalendar();
 
 const pct = Math.round(paidAll/totalAll*100);
 document.getElementById("overall").innerHTML = `
