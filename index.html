@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tita Dianne's Debt Tracker</title>
+<style>
+  :root{
+    --bg:#000;
+    --card:#0b0f1c;
+    --card2:#111833;
+    --blue:#4169e1;
+    --blue-soft:#7f9bff;
+    --line:#1f2a52;
+    --text:#eef1fb;
+    --muted:#8d97b8;
+    --paid:#4169e1;
+    --unpaid:#2a2f45;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;line-height:1.45;padding:24px 16px 60px}
+  .wrap{max-width:1000px;margin:0 auto}
+  header{text-align:center;margin-bottom:28px}
+  h1{font-size:clamp(1.6rem,5vw,2.4rem);color:var(--blue);letter-spacing:.5px}
+  header p{color:var(--muted);margin-top:4px;font-size:.95rem}
+
+  .summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;margin-bottom:18px}
+  .stat{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px}
+  .stat .label{color:var(--muted);font-size:.8rem;text-transform:uppercase;letter-spacing:.08em}
+  .stat .value{font-size:1.6rem;font-weight:700;margin-top:4px}
+  .stat.hi{background:var(--blue);border-color:var(--blue)}
+  .stat.hi .label{color:#dbe3ff}
+
+  .overall{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:28px}
+  .overall .row{display:flex;justify-content:space-between;font-size:.85rem;color:var(--muted);margin-bottom:8px}
+  .bar{height:12px;border-radius:99px;background:var(--unpaid);overflow:hidden}
+  .bar > div{height:100%;background:linear-gradient(90deg,var(--blue),var(--blue-soft));border-radius:99px}
+
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:18px}
+  .loan{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:18px}
+  .loan h2{font-size:1.2rem;color:var(--blue-soft);display:flex;justify-content:space-between;align-items:center;gap:8px}
+  .badge{font-size:.7rem;padding:3px 9px;border-radius:99px;border:1px solid var(--blue);color:var(--blue-soft);white-space:nowrap}
+  .badge.done{background:var(--blue);color:#fff}
+  .meta{display:grid;grid-template-columns:1fr 1fr;gap:6px 12px;margin:12px 0;font-size:.85rem}
+  .meta span{color:var(--muted)}
+  .meta b{display:block;color:var(--text);font-size:.95rem}
+  .loan .bar{margin:10px 0 4px}
+  .prog{font-size:.78rem;color:var(--muted);margin-bottom:12px}
+  .remain{display:flex;justify-content:space-between;background:var(--card2);border-radius:10px;padding:10px 12px;margin-bottom:12px;font-size:.9rem}
+  .remain b{color:var(--blue-soft)}
+  table{width:100%;border-collapse:collapse;font-size:.85rem}
+  th{text-align:left;color:var(--muted);font-weight:500;font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;padding:6px 4px;border-bottom:1px solid var(--line)}
+  td{padding:7px 4px;border-bottom:1px solid #121830}
+  td.amt{text-align:right;font-variant-numeric:tabular-nums}
+  th.amt{text-align:right}
+  .pill{display:inline-block;padding:2px 10px;border-radius:99px;font-size:.72rem;font-weight:600}
+  .pill.paid{background:var(--blue);color:#fff}
+  .pill.unpaid{background:transparent;border:1px solid #3a4470;color:var(--muted)}
+  tr.next td{background:rgba(65,105,225,.12)}
+  tr.next .pill.unpaid{border-color:var(--blue);color:var(--blue-soft)}
+  footer{text-align:center;color:var(--muted);font-size:.78rem;margin-top:32px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Tita Dianne's Debt Tracker</h1>
+    <p>Loan and PayLater payment schedules &middot; amounts in &#8369;</p>
+  </header>
+
+  <section class="summary" id="summary"></section>
+  <section class="overall" id="overall"></section>
+  <section class="grid" id="loans"></section>
+
+  <footer>Figures taken from Sheet2 of the debt spreadsheet.</footer>
+</div>
+
+<script>
+// status: 1 = Paid, 0 = Unpaid (blank statuses in the sheet are treated as Unpaid)
+const loans = [
+  { name:"GLoan", principal:3000, rate:"5.99%", monthly:513.03, total:4617.31, paid:2565.17, remaining:2052.14,
+    sched:[["2026-07-06",513.03,1],["2026-08-06",513.03,1],["2026-09-06",513.03,1],["2026-10-06",513.03,1],["2026-11-06",513.03,1],
+           ["2026-12-06",513.03,0],["2027-01-06",513.03,0],["2027-02-06",513.03,0],["2027-03-06",513.07,0]] },
+  { name:"SLoan #1", principal:3000, rate:"4.95%", monthly:487.83, total:4390.53, paid:2439.17, remaining:1951.36,
+    sched:[["2026-06-21",487.81,1],["2026-07-21",487.84,1],["2026-08-21",487.84,1],["2026-09-21",487.84,1],["2026-10-21",487.84,1],
+           ["2026-11-21",487.84,0],["2026-12-21",487.84,0],["2027-01-21",487.84,0],["2027-02-21",487.84,0]] },
+  { name:"SLoan #2", principal:2500, rate:"4.45%", monthly:944.58, total:2833.75, paid:1889.17, remaining:944.58,
+    sched:[["2026-06-21",944.58,1],["2026-07-21",944.58,1],["2026-08-21",944.59,0]] },
+  { name:"SPayLater #1", principal:1612.03, rate:"3.95%", monthly:332.07, total:1992.45, paid:1328.28, remaining:664.17,
+    sched:[["2026-08-15",332.07,1],["2026-09-15",332.07,1],["2026-10-15",332.07,1],["2026-11-15",332.07,1],
+           ["2026-12-15",332.07,0],["2027-01-15",332.10,0]] },
+  { name:"SPayLater Limit Xtra", principal:4628.84, rate:"&#8369;2,177.98 fee", monthly:567.24, total:6806.82, paid:1701.71, remaining:5105.12,
+    sched:[["2026-09-15",567.24,1],["2026-10-15",567.24,1],["2026-11-15",567.24,1],["2026-12-15",567.24,0],["2027-01-15",567.24,0],
+           ["2027-02-15",567.24,0],["2027-03-15",567.24,0],["2027-04-15",567.24,0],["2027-05-15",567.24,0],["2027-06-15",567.24,0],
+           ["2027-07-15",567.24,0],["2027-08-15",567.18,0]] },
+  { name:"Cash Advance", principal:500, rate:"&#8369;60.47 fee", monthly:186.82, total:560.47, paid:373.65, remaining:186.82,
+    sched:[["2026-10-15",186.83,1],["2026-11-15",186.83,1],["2026-12-15",186.81,0]] }
+];
+
+const peso = n => "\u20B1" + n.toLocaleString("en-PH",{minimumFractionDigits:2,maximumFractionDigits:2});
+const fmtDate = s => new Date(s+"T00:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"});
+
+const totalAll = loans.reduce((a,l)=>a+l.total,0);
+const paidAll = loans.reduce((a,l)=>a+l.paid,0);
+const remainAll = loans.reduce((a,l)=>a+l.remaining,0);
+
+// next due payment across all loans
+let next = null;
+loans.forEach(l => l.sched.forEach(p => {
+  if(!p[2] && (!next || p[0] < next.date)) next = {date:p[0], amt:p[1], loan:l.name};
+}));
+
+document.getElementById("summary").innerHTML = `
+  <div class="stat hi"><div class="label">Remaining balance</div><div class="value">${peso(remainAll)}</div></div>
+  <div class="stat"><div class="label">Total paid</div><div class="value">${peso(paidAll)}</div></div>
+  <div class="stat"><div class="label">Total debt</div><div class="value">${peso(totalAll)}</div></div>
+  <div class="stat"><div class="label">Next payment due</div><div class="value">${next?fmtDate(next.date):"-"}</div>
+    <div class="label" style="margin-top:4px;text-transform:none">${next?next.loan+" &middot; "+peso(next.amt):""}</div></div>`;
+
+const pct = Math.round(paidAll/totalAll*100);
+document.getElementById("overall").innerHTML = `
+  <div class="row"><span>Overall progress</span><span>${pct}% paid</span></div>
+  <div class="bar"><div style="width:${pct}%"></div></div>`;
+
+document.getElementById("loans").innerHTML = loans.map(l => {
+  const done = l.sched.filter(p=>p[2]).length;
+  const n = l.sched.length;
+  const p = Math.round(l.paid/l.total*100);
+  const nextIdx = l.sched.findIndex(x=>!x[2]);
+  const rows = l.sched.map((x,i)=>`
+    <tr class="${i===nextIdx?'next':''}">
+      <td>${fmtDate(x[0])}</td>
+      <td class="amt">${peso(x[1])}</td>
+      <td><span class="pill ${x[2]?'paid':'unpaid'}">${x[2]?'Paid':'Unpaid'}</span></td>
+    </tr>`).join("");
+  return `
+  <article class="loan">
+    <h2>${l.name} <span class="badge ${done===n?'done':''}">${done}/${n} paid</span></h2>
+    <div class="meta">
+      <div><span>Loan amount</span><b>${peso(l.principal)}</b></div>
+      <div><span>Interest / fee</span><b>${l.rate}</b></div>
+      <div><span>Monthly</span><b>${peso(l.monthly)}</b></div>
+      <div><span>Total w/ interest</span><b>${peso(l.total)}</b></div>
+    </div>
+    <div class="bar"><div style="width:${p}%"></div></div>
+    <div class="prog">${peso(l.paid)} paid &middot; ${p}%</div>
+    <div class="remain"><span>Remaining balance</span><b>${peso(l.remaining)}</b></div>
+    <table>
+      <thead><tr><th>Due date</th><th class="amt">Amount</th><th>Status</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+  </article>`;
+}).join("");
+</script>
+</body>
+</html>
